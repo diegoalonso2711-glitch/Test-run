@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Balloon Pop Blitz</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #fef4e6, #f2c9ff 60%, #cce7ff);
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .game {
+      width: min(900px, 95vw);
+      background: rgba(255, 255, 255, 0.88);
+      border-radius: 24px;
+      box-shadow: 0 20px 50px rgba(69, 29, 86, 0.25);
+      padding: 28px;
+      display: grid;
+      gap: 24px;
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: clamp(1.6rem, 3vw, 2.4rem);
+      color: #4a1c68;
+    }
+
+    .stats {
+      display: flex;
+      gap: 16px;
+      font-weight: 600;
+      color: #4a1c68;
+    }
+
+    .stats span {
+      background: #f7e8ff;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 2px solid #f0c9ff;
+    }
+
+    .playfield {
+      position: relative;
+      height: min(60vh, 420px);
+      border-radius: 18px;
+      background: linear-gradient(180deg, #7ed3ff, #b7f6ff 60%, #fff7ec);
+      overflow: hidden;
+      border: 3px dashed rgba(74, 28, 104, 0.4);
+    }
+
+    .balloon {
+      position: absolute;
+      width: 64px;
+      height: 84px;
+      border-radius: 50% 50% 45% 45%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+      transition: transform 0.1s ease;
+    }
+
+    .balloon:active {
+      transform: scale(0.92);
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    button {
+      border: none;
+      background: #ff7cc7;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      box-shadow: 0 10px 20px rgba(255, 124, 199, 0.35);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 16px 28px rgba(255, 124, 199, 0.4);
+    }
+
+    .tips {
+      margin: 0;
+      color: #3f2b58;
+      line-height: 1.5;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.82);
+      text-align: center;
+      padding: 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .overlay.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .overlay h2 {
+      margin: 0 0 8px;
+      color: #4a1c68;
+    }
+
+    .overlay p {
+      margin: 0;
+      color: #3f2b58;
+    }
+  </style>
+</head>
+<body>
+  <div class="game">
+    <header>
+      <h1>Balloon Pop Blitz 🎈</h1>
+      <div class="stats">
+        <span>Score: <strong id="score">0</strong></span>
+        <span>Time: <strong id="time">30</strong>s</span>
+        <span>Combo: <strong id="combo">0</strong>x</span>
+      </div>
+    </header>
+
+    <div class="playfield" id="playfield">
+      <div class="overlay active" id="overlay">
+        <div>
+          <h2>Pop the balloons before time runs out!</h2>
+          <p>Each pop boosts your combo. Missed clicks reset it.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="startButton">Start Game</button>
+      <p class="tips">Tip: the bigger the combo, the faster the balloons float!</p>
+    </div>
+  </div>
+
+  <script>
+    const playfield = document.getElementById("playfield");
+    const scoreEl = document.getElementById("score");
+    const timeEl = document.getElementById("time");
+    const comboEl = document.getElementById("combo");
+    const overlay = document.getElementById("overlay");
+    const startButton = document.getElementById("startButton");
+
+    const colors = ["#ff6b6b", "#4cc9f0", "#f9c74f", "#b5179e", "#43aa8b"];
+
+    let score = 0;
+    let combo = 0;
+    let timeLeft = 30;
+    let gameInterval;
+    let spawnInterval;
+    let isRunning = false;
+
+    const resetGame = () => {
+      score = 0;
+      combo = 0;
+      timeLeft = 30;
+      scoreEl.textContent = score;
+      comboEl.textContent = combo;
+      timeEl.textContent = timeLeft;
+      playfield.querySelectorAll(".balloon").forEach((balloon) => balloon.remove());
+    };
+
+    const spawnBalloon = () => {
+      const balloon = document.createElement("div");
+      balloon.className = "balloon";
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      balloon.style.background = `radial-gradient(circle at 30% 30%, #ffffffaa, ${color})`;
+      balloon.style.left = `${Math.random() * 85}%`;
+      balloon.style.bottom = "-100px";
+      balloon.textContent = "+" + (combo + 1);
+
+      const floatDuration = Math.max(2200 - combo * 100, 900);
+      balloon.animate([
+        { transform: "translateY(0)" },
+        { transform: "translateY(-520px)" }
+      ], {
+        duration: floatDuration,
+        easing: "ease-out"
+      });
+
+      const removeBalloon = () => {
+        if (balloon.parentElement) {
+          balloon.remove();
+          combo = 0;
+          comboEl.textContent = combo;
+        }
+      };
+
+      balloon.addEventListener("click", (event) => {
+        event.stopPropagation();
+        score += 5 + combo;
+        combo += 1;
+        scoreEl.textContent = score;
+        comboEl.textContent = combo;
+        balloon.remove();
+      });
+
+      setTimeout(removeBalloon, floatDuration);
+      playfield.appendChild(balloon);
+    };
+
+    const startGame = () => {
+      if (isRunning) return;
+      isRunning = true;
+      overlay.classList.remove("active");
+      resetGame();
+      startButton.textContent = "Restart";
+
+      gameInterval = setInterval(() => {
+        timeLeft -= 1;
+        timeEl.textContent = timeLeft;
+        if (timeLeft <= 0) {
+          endGame();
+        }
+      }, 1000);
+
+      spawnInterval = setInterval(spawnBalloon, 650);
+    };
+
+    const endGame = () => {
+      isRunning = false;
+      clearInterval(gameInterval);
+      clearInterval(spawnInterval);
+      overlay.classList.add("active");
+      overlay.querySelector("h2").textContent = "Time's up!";
+      overlay.querySelector("p").textContent = `Final score: ${score}. Want to play again?`;
+    };
+
+    playfield.addEventListener("click", () => {
+      if (!isRunning) return;
+      combo = 0;
+      comboEl.textContent = combo;
+    });
+
+    startButton.addEventListener("click", startGame);
+  </script>
+</body>
+</html>
